@@ -57,17 +57,21 @@
             </div>
         </div>
 
-        <div class="p-4 bg-gray-800 text-gray-100 rounded-lg h-40 overflow-y-scroll text-sm">
+        <div class="p-4 bg-gray-800 text-gray-100 rounded-lg h-40 overflow-y-scroll text-sm mb-4">
             <h3 class="font-mono text-xs text-green-400 mb-1">CONSOLE OUTPUT (Arduino Feedback)</h3>
             <pre id="logOutput" class="whitespace-pre-wrap font-mono"></pre>
         </div>
+        
+        <p class="text-center text-sm text-gray-600 font-medium">
+            Made by <span class="font-bold text-indigo-700">Abhijay Jalagari</span>, thank you for visiting 🤗
+        </p>
 
     </div>
 
     <script>
-        // --- TEACABLE MACHINE GLOBAL CONFIGURATION (Using the improved/better logic) ---
-        // !!! IMPORTANT: Replace this placeholder with your actual model URL
-        const URL = "https://teachablemachine.withgoogle.com/models/DJ-w7A3_c/"; 
+        // --- TEACABLE MACHINE GLOBAL CONFIGURATION ---
+        // *** This URL is now correctly set to your model: nQ76Klk02 ***
+        const URL = "https://teachablemachine.withgoogle.com/models/nQ76Klk02/"; 
         const COMMAND_CONFIDENCE_THRESHOLD = 0.90; // Confidence required to send a command
         const COMMAND_THROTTLE_MS = 2500; // Time (ms) to wait between commands
 
