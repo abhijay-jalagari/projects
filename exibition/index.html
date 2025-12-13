@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Lift Controller (Live Gesture)</title>
-    <!-- Load Tailwind CSS for styling -->
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <!-- Teachable Machine and TensorFlow.js Libraries -->
-    <script src="[https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js](https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js)"></script>
-    <script src="[https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js](https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js)"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
     <style>
         /* Custom styles for aesthetic buttons */
         .gesture-button {
@@ -31,20 +29,16 @@
 </head>
 <body class="bg-gray-50 flex items-center justify-center min-h-screen p-4 font-inter">
 
-
     <div class="w-full max-w-2xl bg-white p-8 rounded-xl shadow-2xl border border-gray-100">
         <h1 class="text-3xl font-bold text-center text-indigo-700 mb-2">AI-Controlled Lift Interface</h1>
         <p class="text-center text-gray-500 mb-8">Live gesture recognition using Teachable Machine and Web Serial API.</p>
 
-
-        <!-- Webcam & Prediction Section -->
         <div class="mb-6 p-4 bg-gray-100 rounded-lg text-center">
             <h2 class="text-lg font-semibold text-gray-700 mb-2">Live Webcam & Prediction</h2>
             <div class="flex justify-center">
-                <!-- Video element to display the webcam feed -->
                 <video id="webcam" playsinline class="w-full md:w-64 h-auto max-h-64 object-cover rounded-lg mb-2 border-4 border-gray-300"></video>
             </div>
-           
+            
             <p id="predictionText" class="text-xl font-bold text-indigo-600">Click START AI to begin recognition.</p>
             <button id="startAiButton" onclick="initTM()"
                     class="mt-3 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg gesture-button">
@@ -52,10 +46,6 @@
             </button>
         </div>
 
-
-
-
-        <!-- Connection Status Section -->
         <div class="mb-8 p-4 bg-indigo-500 rounded-lg border border-indigo-200">
             <h2 class="text-lg font-semibold text-white mb-3">Serial Connection Status</h2>
             <div class="flex items-center justify-between">
@@ -67,34 +57,31 @@
             </div>
         </div>
 
-
-        <!-- Log/Output Console -->
         <div class="p-4 bg-gray-800 text-gray-100 rounded-lg h-40 overflow-y-scroll text-sm">
             <h3 class="font-mono text-xs text-green-400 mb-1">CONSOLE OUTPUT (Arduino Feedback)</h3>
             <pre id="logOutput" class="whitespace-pre-wrap font-mono"></pre>
         </div>
 
-
     </div>
 
-
     <script>
-        // --- TEACABLE MACHINE GLOBAL CONFIGURATION ---
-        // !!! IMPORTANT: REPLACE THIS DUMMY URL with your actual exported Teachable Machine model URL!
-        const URL = "[https://teachablemachine.withgoogle.com/models/DJ-w7A3_c/](https://teachablemachine.withgoogle.com/models/DJ-w7A3_c/)";
-       
-        let model, webcam, maxPredictions;
+        // --- TEACABLE MACHINE GLOBAL CONFIGURATION (Using the improved/better logic) ---
+        // !!! IMPORTANT: Replace this placeholder with your actual model URL
+        const URL = "https://teachablemachine.withgoogle.com/models/DJ-w7A3_c/"; 
+        const COMMAND_CONFIDENCE_THRESHOLD = 0.90; // Confidence required to send a command
+        const COMMAND_THROTTLE_MS = 2500; // Time (ms) to wait between commands
+
+        let model = null;
+        let webcam = null;
         let currentGesture = 'None';
         let lastCommandTime = 0;
-        // Throttle commands to prevent spamming the Arduino and causing instability
-        const commandThrottleMs = 2500;
-
+        let isLooping = false; // Flag to manage the animation frame loop
 
         // --- WEB SERIAL GLOBAL CONFIGURATION ---
-        let port;
-        let writer;
-        const baudRate = 9600;
-
+        let port = null;
+        let writer = null;
+        let reader = null; // Storing the reader for better control
+        const BAUD_RATE = 9600;
 
         // DOM Elements
         const logOutput = document.getElementById('logOutput');
@@ -104,213 +91,224 @@
         const webcamElement = document.getElementById('webcam');
         const predictionText = document.getElementById('predictionText');
 
-
         // Function to update the log console
         function log(message, isError = false) {
             const timestamp = new Date().toLocaleTimeString();
             const color = isError ? 'text-red-400' : 'text-gray-100';
             logOutput.innerHTML += `<span class="text-gray-500">${timestamp}</span> <span class="${color}">${message}</span>\n`;
-            logOutput.scrollTop = logOutput.scrollHeight; // Auto-scroll to bottom
+            logOutput.scrollTop = logOutput.scrollHeight;
         }
 
+        // Helper to update the serial status UI
+        function updateSerialStatus(isConnected) {
+            if (isConnected) {
+                statusMessage.textContent = "CONNECTED";
+                statusMessage.className = "font-medium text-green-400";
+                connectButton.textContent = "Connected";
+                connectButton.disabled = true;
+            } else {
+                statusMessage.textContent = "DISCONNECTED";
+                statusMessage.className = "font-medium text-yellow-300";
+                connectButton.textContent = "Connect to Arduino";
+                connectButton.disabled = false;
+            }
+        }
 
         // --- TEACABLE MACHINE LOGIC ---
 
-
         async function initTM() {
+            if (isLooping) {
+                log("AI is already running.", false);
+                return;
+            }
+
             startAiButton.disabled = true;
             predictionText.textContent = "Loading model...";
-           
+            
             const modelURL = URL + "model.json";
             const metadataURL = URL + "metadata.json";
-           
+            
             try {
                 // 1. Load the model
                 model = await tmImage.load(modelURL, metadataURL);
-                maxPredictions = model.getTotalClasses();
-
+                const maxPredictions = model.getTotalClasses();
 
                 // 2. Setup webcam
                 const flip = true;
-                webcam = new tmImage.Webcam(200, 200, flip); // Fixed size for model input
+                webcam = new tmImage.Webcam(200, 200, flip);
                 await webcam.setup();
                 await webcam.play();
                 webcamElement.srcObject = webcam.webcam.srcObject;
                 webcamElement.play();
-               
+                
                 predictionText.textContent = "AI Ready. Make a gesture.";
-                log("Teachable Machine model loaded and webcam started.", false);
+                log(`Teachable Machine model loaded (${maxPredictions} classes) and webcam started.`, false);
+                
                 // Start the prediction loop
+                isLooping = true;
                 window.requestAnimationFrame(loop);
+
             } catch (error) {
-                 predictionText.textContent = "Error accessing webcam or loading model. Check console.";
-                 log(`Failed to start AI: ${error.message}. Did you replace the placeholder URL?`, true);
-                 startAiButton.disabled = false;
+                predictionText.textContent = "Error accessing webcam or loading model.";
+                log(`Failed to start AI: ${error.name}: ${error.message}. Check your URL and webcam permissions.`, true);
+                startAiButton.disabled = false;
+                isLooping = false;
             }
         }
 
+        function loop() {
+            if (!isLooping) return;
 
-        async function loop() {
             webcam.update(); // Get new frame from webcam
-            await predict();
+            predict(); // Predict is now fire-and-forget (async call without await)
+            
             window.requestAnimationFrame(loop); // Continue loop
         }
 
-
         async function predict() {
-            if (!model) return;
-           
-            // Get prediction
-            const prediction = await model.predict(webcam.canvas);
-            let highestProb = 0;
-            let bestClass = 'None';
-            let commandToSend = null;
+            if (!model || !webcam) return;
+            
+            try {
+                const prediction = await model.predict(webcam.canvas);
+                let highestProb = 0;
+                let bestClass = 'None';
+                let commandToSend = null;
 
-
-            // Find the class with the highest probability
-            for (let i = 0; i < maxPredictions; i++) {
-                if (prediction[i].probability > highestProb) {
-                    highestProb = prediction[i].probability;
-                    bestClass = prediction[i].className;
-                }
-            }
-           
-            // Send command if confidence is high and throttle time has passed
-            if (highestProb > 0.90) { // Require 90% confidence
-                const now = Date.now();
-               
-                if (bestClass !== currentGesture) {
-                    currentGesture = bestClass;
-                }
-               
-                // Only send command if gesture is new OR enough time has passed
-                // and the current gesture is one of the recognised commands
-                if (now - lastCommandTime > commandThrottleMs) {
-                   
-                    // Note: Ensure your Teachable Machine classes match these names closely
-                    if (bestClass.toLowerCase().includes('thumbs up')) {
-                        commandToSend = 'U'; // Up
-                    } else if (bestClass.toLowerCase().includes('thumbs down')) {
-                        commandToSend = 'D'; // Down
-                    } else if (bestClass.toLowerCase().includes('stop hand')) {
-                        commandToSend = 'S'; // Stop
-                    }
-                   
-                    if (commandToSend) {
-                        sendCommand(commandToSend);
-                        lastCommandTime = now;
+                // Find the class with the highest probability
+                for (const p of prediction) {
+                    if (p.probability > highestProb) {
+                        highestProb = p.probability;
+                        bestClass = p.className;
                     }
                 }
-            } else {
-                currentGesture = 'None';
+                
+                predictionText.textContent = `Recognized: ${bestClass} (${(highestProb * 100).toFixed(1)}%)`;
+
+                // Send command if confidence is high and throttle time has passed
+                if (highestProb >= COMMAND_CONFIDENCE_THRESHOLD) {
+                    const now = Date.now();
+                    
+                    if (now - lastCommandTime > COMMAND_THROTTLE_MS) {
+                        
+                        // Map the predicted class name to a serial command
+                        const classNameLower = bestClass.toLowerCase();
+                        if (classNameLower.includes('thumbs up')) {
+                            commandToSend = 'U'; // Up
+                        } else if (classNameLower.includes('thumbs down')) {
+                            commandToSend = 'D'; // Down
+                        } else if (classNameLower.includes('stop hand') || classNameLower.includes('stop')) {
+                            commandToSend = 'S'; // Stop
+                        }
+                        
+                        if (commandToSend) {
+                            sendCommand(commandToSend);
+                            lastCommandTime = now;
+                        }
+                    }
+                }
+            } catch (e) {
+                log(`Prediction error: ${e.message}`, true);
             }
-
-
-            predictionText.textContent = `Recognized: ${currentGesture} (${(highestProb * 100).toFixed(1)}%)`;
         }
-
 
         // --- WEB SERIAL LOGIC ---
 
-
-        /**
-         * Connects to the Arduino via the Web Serial API.
-         */
         async function connectSerial() {
             if (!('serial' in navigator)) {
-                statusMessage.textContent = "Error: Web Serial API not supported.";
-                statusMessage.className = "font-medium text-red-600";
+                updateSerialStatus(false);
                 return log("Error: Web Serial API not supported. Use Chrome or Edge.", true);
             }
 
-
             try {
+                connectButton.disabled = true;
                 // Request port selection from the user
                 port = await navigator.serial.requestPort();
-                await port.open({ baudRate: baudRate });
-               
-                // Set up the writer to send text data
+                
+                // Open the port with the desired baud rate
+                await port.open({ baudRate: BAUD_RATE });
+                
+                // Setup the writer (to send data)
                 const textEncoder = new TextEncoderStream();
                 writer = textEncoder.writable.getWriter();
                 textEncoder.readable.pipeTo(port.writable);
 
-
-                statusMessage.textContent = "CONNECTED";
-                statusMessage.className = "font-medium text-green-600";
-                connectButton.textContent = "Connected";
-                connectButton.disabled = true;
-                log(`Successfully connected at ${baudRate} baud.`, false);
-
+                updateSerialStatus(true);
+                log(`Successfully connected at ${BAUD_RATE} baud.`, false);
 
                 readSerial(); // Start listening for Arduino feedback
 
-
             } catch (error) {
-                statusMessage.textContent = "CONNECTION FAILED";
-                statusMessage.className = "font-medium text-red-600";
+                updateSerialStatus(false);
                 connectButton.disabled = false;
                 log(`Connection failed: ${error.message}`, true);
             }
         }
 
-
-        /**
-         * Reads incoming data from the Arduino.
-         */
         async function readSerial() {
             if (!port || !port.readable) return;
 
-
-            const reader = port.readable
-                .pipeThrough(new TextDecoderStream())
+            // Setup the reader (to receive data)
+            const textDecoder = new TextDecoderStream();
+            reader = port.readable
+                .pipeThrough(textDecoder)
                 .getReader();
 
-
             try {
-                while (true) {
+                while (port.readable) {
                     const { value, done } = await reader.read();
                     if (done) break;
+
                     if (value) {
-                        // Arduino sends lines, so split them and log
+                        // Split by newline and log each line received from Arduino
                         const lines = value.trim().split('\n');
                         lines.forEach(line => log(`[Arduino]: ${line.trim()}`));
                     }
                 }
             } catch (error) {
-                log(`Read error: ${error.message}`, true);
+                log(`Serial read error: ${error.message}`, true);
             } finally {
                 reader.releaseLock();
+                reader = null; // Clear the reader reference
+                updateSerialStatus(false);
+                log("Serial connection closed.", true);
             }
         }
 
-
-        /**
-         * Sends a command character ('U', 'D', or 'S') to the Arduino.
-         */
         async function sendCommand(command) {
             if (writer) {
                 try {
+                    // Send the single character command
                     await writer.write(command);
                     log(`AI Sent command: '${command}'`);
                 } catch (error) {
                     log(`Failed to send command: ${error.message}`, true);
+                    // Attempt to reconnect or handle disconnection
+                    writer.releaseLock();
+                    writer = null;
+                    updateSerialStatus(false);
                 }
             } else {
                 log("Serial port not connected. Please connect first.", true);
             }
         }
 
-
-        // Clean up serial connection on close
+        /**
+         * Cleans up resources when the user navigates away or closes the tab.
+         */
         window.addEventListener('beforeunload', async (event) => {
-            if (webcam) {
-                webcam.stop();
+            // Stop webcam stream
+            if (webcam && webcam.webcam && webcam.webcam.srcObject) {
+                webcam.webcam.srcObject.getTracks().forEach(track => track.stop());
+                isLooping = false; // Stop the animation frame loop
             }
+            
+            // Close serial port gracefully
             if (port && port.opened) {
+                if (reader) await reader.cancel();
+                if (writer) await writer.close();
                 await port.close();
             }
         });
-
 
     </script>
 </body>
