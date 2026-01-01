@@ -1,22 +1,15 @@
-🛠️ Components Needed
-Microcontroller: 1x Arduino Uno (or similar)
+KY-037 Sound Sensor: Same as before (A0 to A0, VCC to 5V, GND to GND).
 
-Sensor: 1x Sound Detection Sensor Module (e.g., KY-037 or a similar digital output module). You will use the Digital Output (DO) pin.
+Buzzer: Pin 5 to Positive (+), GND to Negative (-).
 
-Output 1: 1x LED (Light Emitting Diode)
+RGB LED (Common Anode):
 
-Output 2: 1x Active Buzzer Module (or Piezo Buzzer)
+Longest Pin (Common): Connect to Arduino 5V.
 
-Resistors: 1x 220 Ohm Resistor (for the LED protection)
+Red Pin: Connect to Pin 9 (via 220$\Omega$ resistor).
 
-Wiring: Jumper Wires
+Green Pin: Connect to Pin 10 (via 220$\Omega$ resistor).
 
-Platform: 1x Breadboard
+Blue Pin: Connect to Pin 11 (via 220$\Omega$ resistor) — We won't use Blue for this project, but wire it so it doesn't float.
 
-Sound Sensor	VCC	5V	Power
-Sound Sensor	GND	GND	Ground
-Sound Sensor	OUT/DO	Digital Pin 2	Input for sound trigger
-LED	Anode (+)	Digital Pin 3	Connect via a 220$\Omega$ resistor
-LED	Cathode (-)	GND	
-Buzzer	Positive (+)	Digital Pin 4	Digital Output
-Buzzer	Negative (-)	GND
+Note: We use Pins 9, 10, and 11 because they support PWM. This allows you to "mix" colors better if the Yellow looks too orange or too green later.
