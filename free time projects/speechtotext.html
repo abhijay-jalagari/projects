@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Speech to Text</title>
+</head>
+<body>
+    <h1>Sound to Text Converter</h1>
+    <button id="startStopButton">Start Listening</button>
+    <div id="result" style="margin-top: 20px; border: 1px solid #ccc; padding: 10px;">
+        <!-- Transcribed text will appear here -->
+    </div>
+
+    <script>
+        const startStopButton = document.getElementById('startStopButton');
+        const resultDiv = document.getElementById('result');
+
+        // Use window.SpeechRecognition or window.webkitSpeechRecognition for compatibility
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+
+        // Set properties
+        recognition.interimResults = true; // Get results while speaking
+        recognition.continuous = false; // Stop after a single utterance
+
+        let listening = false;
+
+        startStopButton.addEventListener('click', () => {
+            if (listening) {
+                recognition.stop();
+                startStopButton.textContent = 'Start Listening';
+            } else {
+                recognition.start();
+                startStopButton.textContent = 'Stop Listening';
+            }
+            listening = !listening;
+        });
+
+        recognition.onresult = (event) => {
+            let transcript = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript;
+            }
+            resultDiv.textContent = transcript; // Update the div with the ongoing transcript
+        };
+
+        recognition.onend = () => {
+            listening = false;
+            startStopButton.textContent = 'Start Listening';
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            resultDiv.textContent = 'Error: ' + event.error;
+            listening = false;
+            startStopButton.textContent = 'Start Listening';
+        };
+    </script>
+</body>
+</html>
