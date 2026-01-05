@@ -1,99 +1,115 @@
-// Define the baud rate to match the Web Serial code (9600)
+// --- FINAL AI LIFT CODE (Motor + 7-Segment Display) ---
+
 const long BAUD_RATE = 9600;
 
 // Variables for state tracking
 char incomingCommand = ' ';
-String currentLiftState = "STOPPED at Ground";
+String currentLiftState = "STOPPED";
+int currentFloor = 1; // Start at Floor 1
 
 // --- PHYSICAL OUTPUT PINS ---
-// You will connect these pins to your motor driver or relays.
-const int MOTOR_UP_PIN = 9;   // Represents the motor moving UP or an indicator LED
-const int MOTOR_DOWN_PIN = 10; // Represents the motor moving DOWN or an indicator LED
+const int MOTOR_UP_PIN = 9;   // L293D Input 1
+const int MOTOR_DOWN_PIN = 10; // L293D Input 2
+
+// 7-Segment Pins (Common Anode)
+const int segmentPins[] = {2, 3, 4, 5, 6, 7, 8}; 
+
+// Patterns for 1, 2, 3 (Common Anode: 0 is ON, 1 is OFF)
+const byte floorPatterns[4][7] = {
+    {1, 1, 1, 1, 1, 1, 1}, // 0: Off
+    {1, 0, 0, 1, 1, 1, 1}, // 1: Floor 1
+    {0, 0, 1, 0, 0, 1, 0}, // 2: Floor 2
+    {0, 0, 0, 0, 1, 1, 0}  // 3: Floor 3
+};
 
 void setup() {
-  // Start serial communication
   Serial.begin(BAUD_RATE);
-  // Wait for the serial port to connect. Needed for Leonardo/Micro and web serial.
   while (!Serial);
 
-  // Initialize the output pins
+  // Initialize Motor Pins
   pinMode(MOTOR_UP_PIN, OUTPUT);
   pinMode(MOTOR_DOWN_PIN, OUTPUT);
 
-  // Initial status messages sent back to the web console
+  // Initialize 7-Segment Pins
+  for (int i = 0; i < 7; i++) {
+    pinMode(segmentPins[i], OUTPUT);
+  }
+
+  // Initial Status
+  displayFloor(currentFloor);
   Serial.println("ARDUINO READY");
-  Serial.print("Initial State: ");
-  Serial.println(currentLiftState);
+  Serial.print("Initial Floor: ");
+  Serial.println(currentFloor);
 }
 
 void loop() {
-  // --- 1. Check for incoming commands from the Web Serial API ---
   if (Serial.available() > 0) {
-    // Read the incoming byte (command character)
     incomingCommand = Serial.read();
 
-    // --- 2. Process the command ---
     switch (incomingCommand) {
-      case 'U': // Command to move Up (from Thumbs Up gesture)
-        handleUpCommand();
+      case 'U': 
+        if (currentFloor < 3) handleUpCommand();
+        else Serial.println("ALREADY AT TOP");
         break;
 
-      case 'D': // Command to move Down (from Thumbs Down gesture)
-        handleDownCommand();
+      case 'D': 
+        if (currentFloor > 1) handleDownCommand();
+        else Serial.println("ALREADY AT BOTTOM");
         break;
 
-      case 'S': // Command to Stop (from Stop Hand gesture)
+      case 'S': 
         handleStopCommand();
-        break;
-
-      default:
-        // Handle unexpected commands (optional)
-        Serial.print("ERROR: Unknown command received: ");
-        Serial.println(incomingCommand);
         break;
     }
   }
-
-  // --- 3. (Optional) Your continuous logic goes here (e.g., checking limit switches) ---
 }
 
 // --- COMMAND HANDLER FUNCTIONS ---
 
 void handleUpCommand() {
-  // 1. Ensure the opposing motor is off for safety
   digitalWrite(MOTOR_DOWN_PIN, LOW);
   delay(100); 
-
-  // 2. Start the motor UP
   digitalWrite(MOTOR_UP_PIN, HIGH);
-  currentLiftState = "MOVING UP";
-
-  // 3. Send feedback to the web console
-  Serial.print("LIFT ACTION: Moving Up (Code: U). Current State: ");
-  Serial.println(currentLiftState);
+  
+  Serial.println("LIFT ACTION: Moving Up...");
+  delay(2000); // Simulate travel time
+  
+  stopMotors();
+  currentFloor++;
+  displayFloor(currentFloor);
+  
+  Serial.print("Arrived at Floor: ");
+  Serial.println(currentFloor);
 }
 
 void handleDownCommand() {
-  // 1. Ensure the opposing motor is off for safety
   digitalWrite(MOTOR_UP_PIN, LOW);
   delay(100); 
-
-  // 2. Start the motor DOWN
   digitalWrite(MOTOR_DOWN_PIN, HIGH);
-  currentLiftState = "MOVING DOWN";
-
-  // 3. Send feedback to the web console
-  Serial.print("LIFT ACTION: Moving Down (Code: D). Current State: ");
-  Serial.println(currentLiftState);
+  
+  Serial.println("LIFT ACTION: Moving Down...");
+  delay(2000); // Simulate travel time
+  
+  stopMotors();
+  currentFloor--;
+  displayFloor(currentFloor);
+  
+  Serial.print("Arrived at Floor: ");
+  Serial.println(currentFloor);
 }
 
 void handleStopCommand() {
-  // 1. Stop both motor indicators/relays
+  stopMotors();
+  Serial.println("LIFT ACTION: EMERGENCY STOP");
+}
+
+void stopMotors() {
   digitalWrite(MOTOR_UP_PIN, LOW);
   digitalWrite(MOTOR_DOWN_PIN, LOW);
-  currentLiftState = "STOPPED";
+}
 
-  // 2. Send feedback to the web console
-  Serial.print("LIFT ACTION: STOPPING (Code: S). Current State: ");
-  Serial.println(currentLiftState);
+void displayFloor(int floorNum) {
+  for (int i = 0; i < 7; i++) {
+    digitalWrite(segmentPins[i], floorPatterns[floorNum][i]);
+  }
 }
